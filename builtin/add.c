@@ -310,7 +310,7 @@ static const char ignore_error[] =
 "The following paths are ignored by one of your .gitignore files:\n";
 
 static int verbose = 0, show_only = 0, ignored_too = 0, refresh_only = 0;
-static int ignore_add_errors, addremove, intent_to_add;
+static int ignore_add_errors, addremove, intent_to_add, ignore_missing = 0;
 
 static struct option builtin_add_options[] = {
 	OPT__DRY_RUN(&show_only),
@@ -325,6 +325,7 @@ static struct option builtin_add_options[] = {
 	OPT_BOOLEAN('A', "all", &addremove, "add all, noticing removal of tracked files"),
 	OPT_BOOLEAN( 0 , "refresh", &refresh_only, "don't add, only refresh the index"),
 	OPT_BOOLEAN( 0 , "ignore-errors", &ignore_add_errors, "just skip files which cannot be added because of errors"),
+	OPT_BOOLEAN( 0 , "ignore-missing", &ignore_missing, "check if - even missing - files are ignored in dry run"),
 	OPT_END(),
 };
 
@@ -385,6 +386,8 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 
 	if (addremove && take_worktree_changes)
 		die("-A and -u are mutually incompatible");
+	if (!show_only && ignore_missing)
+		die("Option --ignore-missing can only be used together with --dry-run");
 	if ((addremove || take_worktree_changes) && !argc) {
 		static const char *here[2] = { ".", NULL };
 		argc = 1;
@@ -420,8 +423,27 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 		/* Set up the default git porcelain excludes */
 		memset(&dir, 0, sizeof(dir));
 		if (!ignored_too) {
+			const char **tracked = xmalloc(sizeof(char *) * (argc + 1));
+			const char **p;
+			int tidx = 0;
+			int pidx = 0;
+
 			dir.flags |= DIR_COLLECT_IGNORED;
 			setup_standard_excludes(&dir);
+
+			for (p = pathspec; *p; p++) {
+				if ((*p)[0] && cache_name_exists(*p, strlen(*p), 0))
+					tracked[tidx++] = *p;
+				else
+					pathspec[pidx++] = *p;
+			}
+
+			tracked[tidx] = NULL;
+			pathspec[pidx] = NULL;
+			exit_status |= add_files_to_cache(prefix, tracked, flags);
+			/* All files were tracked */
+			if (pidx == 0)
+				goto finish;
 		}
 
 		/* This picks up the paths that are not tracked */
@@ -441,9 +463,14 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 			seen = find_used_pathspec(pathspec);
 		for (i = 0; pathspec[i]; i++) {
 			if (!seen[i] && pathspec[i][0]
-			    && !file_exists(pathspec[i]))
-				die("pathspec '%s' did not match any files",
-				    pathspec[i]);
+			    && !file_exists(pathspec[i])) {
+				if (ignore_missing) {
+					if (excluded(&dir, pathspec[i], DT_UNKNOWN))
+						dir_add_ignored(&dir, pathspec[i], strlen(pathspec[i]));
+				} else
+					die("pathspec '%s' did not match any files",
+					    pathspec[i]);
+			}
 		}
 		free(seen);
 	}

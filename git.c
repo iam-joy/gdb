@@ -8,8 +8,8 @@ const char git_usage_string[] =
 	"git [--version] [--exec-path[=GIT_EXEC_PATH]] [--html-path]\n"
 	"           [-p|--paginate|--no-pager] [--no-replace-objects]\n"
 	"           [--bare] [--git-dir=GIT_DIR] [--work-tree=GIT_WORK_TREE]\n"
-	"           [-c name=value\n"
-	"           [--help] COMMAND [ARGS]";
+	"           [-c name=value] [--help]\n"
+	"           COMMAND [ARGS]";
 
 const char git_more_info_string[] =
 	"See 'git help COMMAND' for more information on a specific command.";
@@ -167,6 +167,7 @@ static int handle_alias(int *argcp, const char ***argv)
 	alias_string = alias_lookup(alias_command);
 	if (alias_string) {
 		if (alias_string[0] == '!') {
+			commit_pager_choice();
 			if (*argcp > 1) {
 				struct strbuf buf;
 
@@ -432,6 +433,8 @@ static void execv_dashed_external(const char **argv)
 	const char *tmp;
 	int status;
 
+	commit_pager_choice();
+
 	strbuf_addf(&cmd, "git-%s", argv[0]);
 
 	/*
@@ -511,12 +514,12 @@ int main(int argc, const char **argv)
 	argv++;
 	argc--;
 	handle_options(&argv, &argc, NULL);
-	commit_pager_choice();
 	if (argc > 0) {
 		if (!prefixcmp(argv[0], "--"))
 			argv[0] += 2;
 	} else {
 		/* The user didn't specify a command; give them help */
+		commit_pager_choice();
 		printf("usage: %s\n\n", git_usage_string);
 		list_common_cmds_help();
 		printf("\n%s\n", git_more_info_string);

@@ -170,6 +170,8 @@ static int is_git_directory(const char *suspect)
 	char path[PATH_MAX];
 	size_t len = strlen(suspect);
 
+	if (PATH_MAX <= len + strlen("/objects"))
+		die("Too long path: %.*s", 60, suspect);
 	strcpy(path, suspect);
 	if (getenv(DB_ENVIRONMENT)) {
 		if (access(getenv(DB_ENVIRONMENT), X_OK))
@@ -323,7 +325,8 @@ const char *setup_git_directory_gently(int *nongit_ok)
 	const char *gitdirenv;
 	const char *gitfile_dir;
 	int len, offset, ceil_offset, root_len;
-	int current_device = 0, one_filesystem = 1;
+	dev_t current_device = 0;
+	int one_filesystem = 1;
 	struct stat buf;
 
 	/*

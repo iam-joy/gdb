@@ -1854,8 +1854,9 @@ builtin/prune.o builtin/reflog.o reachable.o: reachable.h
 builtin/commit.o builtin/revert.o wt-status.o: wt-status.h
 builtin/tar-tree.o archive-tar.o: tar.h
 builtin/pack-objects.o: thread-utils.h
+connect.o transport.o http-backend.o: url.h
 http-fetch.o http-walker.o remote-curl.o transport.o walker.o: walker.h
-http.o http-walker.o http-push.o remote-curl.o: http.h
+http.o http-walker.o http-push.o http-fetch.o remote-curl.o: http.h
 
 xdiff-interface.o $(XDIFF_OBJS): \
 	xdiff/xinclude.h xdiff/xmacros.h xdiff/xdiff.h xdiff/xtypes.h \
@@ -2079,19 +2080,19 @@ endif
 		test -z "$(NO_CROSS_DIRECTORY_HARDLINKS)" && \
 		ln "$$bindir/git$X" "$$execdir/git$X" 2>/dev/null || \
 		cp "$$bindir/git$X" "$$execdir/git$X"; } ; } && \
-	{ for p in $(BUILT_INS); do \
+	for p in $(BUILT_INS); do \
 		$(RM) "$$execdir/$$p" && \
 		ln "$$execdir/git$X" "$$execdir/$$p" 2>/dev/null || \
 		ln -s "git$X" "$$execdir/$$p" 2>/dev/null || \
 		cp "$$execdir/git$X" "$$execdir/$$p" || exit; \
-	  done; } && \
-	{ test x"$(REMOTE_CURL_ALIASES)" = x || \
-		{ for p in $(REMOTE_CURL_ALIASES); do \
+	done && \
+	remote_curl_aliases="$(REMOTE_CURL_ALIASES)" && \
+	for p in $$remote_curl_aliases; do \
 		$(RM) "$$execdir/$$p" && \
 		ln "$$execdir/git-remote-http$X" "$$execdir/$$p" 2>/dev/null || \
 		ln -s "git-remote-http$X" "$$execdir/$$p" 2>/dev/null || \
 		cp "$$execdir/git-remote-http$X" "$$execdir/$$p" || exit; \
-	  done; } ; } && \
+	done && \
 	./check_bindir "z$$bindir" "z$$execdir" "$$bindir/git-add$X"
 
 install-gitweb:
@@ -2254,6 +2255,7 @@ check-docs::
 		documented,gitglossary | \
 		documented,githooks | \
 		documented,gitrepository-layout | \
+		documented,gitrevisions | \
 		documented,gittutorial | \
 		documented,gittutorial-2 | \
 		documented,git-bisect-lk2009 | \

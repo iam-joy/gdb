@@ -2627,8 +2627,7 @@ static void fill_metainfo(struct strbuf *msg,
 			    (!fill_mmfile(&mf, two) && diff_filespec_is_binary(two)))
 				abbrev = 40;
 		}
-		strbuf_addf(msg, "%s%sindex %s..", set,
-			    line_prefix,
+		strbuf_addf(msg, "%s%sindex %s..", line_prefix, set,
 			    find_unique_abbrev(one->sha1, abbrev));
 		strbuf_addstr(msg, find_unique_abbrev(two->sha1, abbrev));
 		if (one->mode == two->mode)
@@ -2815,7 +2814,6 @@ static void run_checkdiff(struct diff_filepair *p, struct diff_options *o)
 void diff_setup(struct diff_options *options)
 {
 	memset(options, 0, sizeof(*options));
-	memset(&diff_queued_diff, 0, sizeof(diff_queued_diff));
 
 	options->file = stdout;
 

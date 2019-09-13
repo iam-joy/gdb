@@ -494,6 +494,7 @@ sub cmd_set_tree {
 
 sub cmd_dcommit {
 	my $head = shift;
+	command_noisy(qw/update-index --refresh/);
 	git_cmd_try { command_oneline(qw/diff-index --quiet HEAD/) }
 		'Cannot dcommit with a dirty index.  Commit your changes first, '
 		. "or stash them with `git stash'.\n";
@@ -1819,6 +1820,7 @@ sub read_all_remotes {
 			die("svn-remote.$remote: remote ref '$remote_ref' "
 			    . "must start with 'refs/'\n")
 				unless $remote_ref =~ m{^refs/};
+			$local_ref = uri_decode($local_ref);
 			$r->{$remote}->{fetch}->{$local_ref} = $remote_ref;
 			$r->{$remote}->{svm} = {} if $use_svm_props;
 		} elsif (m!^(.+)\.usesvmprops=\s*(.*)\s*$!) {
@@ -1831,6 +1833,7 @@ sub read_all_remotes {
 			die("svn-remote.$remote: remote ref '$remote_ref' ($t) "
 			    . "must start with 'refs/'\n")
 				unless $remote_ref =~ m{^refs/};
+			$local_ref = uri_decode($local_ref);
 			my $rs = {
 			    t => $t,
 			    remote => $remote,
@@ -3169,6 +3172,22 @@ sub has_no_changes {
 			LIST_CACHE => 'FAULT',
 		;
 	}
+
+	sub unmemoize_svn_mergeinfo_functions {
+		return if not $memoized;
+		$memoized = 0;
+
+		Memoize::unmemoize 'lookup_svn_merge';
+		Memoize::unmemoize 'check_cherry_pick';
+		Memoize::unmemoize 'has_no_changes';
+	}
+}
+
+END {
+	# Force cache writeout explicitly instead of waiting for
+	# global destruction to avoid segfault in Storable:
+	# http://rt.cpan.org/Public/Bug/Display.html?id=36087
+	unmemoize_svn_mergeinfo_functions();
 }
 
 sub parents_exclude {
@@ -4034,6 +4053,7 @@ sub new {
 	$self->{absent_dir} = {};
 	$self->{absent_file} = {};
 	$self->{gii} = $git_svn->tmp_index_do(sub { Git::IndexInfo->new });
+	$self->{pathnameencoding} = Git::config('svn.pathnameencoding');
 	$self;
 }
 
@@ -4117,6 +4137,10 @@ sub open_directory {
 
 sub git_path {
 	my ($self, $path) = @_;
+	if (my $enc = $self->{pathnameencoding}) {
+		require Encode;
+		Encode::from_to($path, 'UTF-8', $enc);
+	}
 	if ($self->{path_strip}) {
 		$path =~ s!$self->{path_strip}!! or
 		  die "Failed to strip path '$path' ($self->{path_strip})\n";
@@ -4505,6 +4529,10 @@ sub split_path {
 
 sub repo_path {
 	my ($self, $path) = @_;
+	if (my $enc = $self->{pathnameencoding}) {
+		require Encode;
+		Encode::from_to($path, $enc, 'UTF-8');
+	}
 	$self->{path_prefix}.(defined $path ? $path : '');
 }
 
